@@ -539,11 +539,11 @@ private extension ValidatedSiopOpenId4VPRequest {
       throw ValidatedAuthorizationError.validationError("kid not found in JWT header")
     }
     
-    guard let clientIdAsDID = DID.parse(clientId) else {
+      guard let clientIdAsDID = DID.parse(keyUrl.string) else {
       throw ValidatedAuthorizationError.validationError("Invalid DID")
     }
     
-    guard let publicKey = await keyLookup.resolveKey(from: clientIdAsDID) else {
+      guard let publicKey = await keyLookup.resolveKey(from: clientIdAsDID) else {
       throw ValidatedAuthorizationError.validationError("Unable to extract public key from DID")
     }
     

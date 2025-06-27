@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 import Foundation
+import SwiftyJSON
+import JOSESwift
 
 public let DID_URL_SYNTAX = try? NSRegularExpression(pattern: "^did:[a-z0-9]+:(([A-Z.a-z0-9]|-|_|%[0-9A-Fa-f][0-9A-Fa-f])*:)*([A-Z.a-z0-9]|-|_|%[0-9A-Fa-f][0-9A-Fa-f])+(/(([-A-Z._a-z0-9]|~)|%[0-9A-Fa-f][0-9A-Fa-f]|([!$&'()*+,;=])|:|@)*)*(\\?(((([-A-Z._a-z0-9]|~)|%[0-9A-Fa-f][0-9A-Fa-f]|([!$&'()*+,;=])|:|@)|/|\\?)*))?(#(((([-A-Z._a-z0-9]|~)|%[0-9A-Fa-f][0-9A-Fa-f]|([!$&'()*+,;=])|:|@)|/|\\?)*))?$", options: [])
 public let DID_SYNTAX = try? NSRegularExpression(pattern: "^did:[a-z0-9]+:(([A-Z.a-z0-9]|-|_|%[0-9A-Fa-f][0-9A-Fa-f])*:)*([A-Z.a-z0-9]|-|_|%[0-9A-Fa-f][0-9A-Fa-f])+$", options: [])
@@ -84,4 +86,90 @@ public struct DID {
     return DID(uri: url)
   }
 }
+
+public class AQDidResolver: DIDPublicKeyLookupAgentType {
+    public init() {}
+    
+    public func resolveDidDocument(didUrl: String) async -> JSON? {
+        let temp = didUrl.split(separator: OpenId4VPSpec.clientIdSchemeSeparator, maxSplits: 2)
+        var urlString = "https://\(temp.dropFirst(2).joined(separator: "/"))"
+        guard let url = URL(string: urlString) else { return nil }
+        if didUrl.last! == ":" {
+            urlString.append("did.json")
+        } else if url.pathComponents.count <= 1 {
+            urlString.append("/.well-known/did.json")
+        } else {
+            urlString.append("/did.json")
+        }
+        
+        guard let didUrl = URL(string: urlString) else { return nil }
+        let didDocumentJson: JSON?
+        
+        do {
+            let (didDocumentData, response) = try await URLSession.shared.data(from: didUrl)
+            guard let didDocumentJSON = try? JSON(data: didDocumentData) else { return nil }
+            didDocumentJson = didDocumentJSON
+        } catch { return nil }
+        
+        guard let didDocumentJson else { return nil }
+        return didDocumentJson
+    }
+    
+    public func resolveKey(from didUrl: DID) async -> SecKey? {
+        let didUri = didUrl.string
+        let parts = didUri.components(separatedBy: "%23")
+        guard parts.count == 2 else { return nil }
+        let (didUrl, kid) = (parts[0], parts[1])
+        guard let didJson = await resolveDidDocument(didUrl: didUrl) else { return nil }
+        let verificationMethods = didJson["verificationMethod"].arrayValue
+        var key: SecKey?
+        for verificationMethod in verificationMethods {
+            if verificationMethod["id"].stringValue == "#\(kid)" {
+                do {
+                    var error: Unmanaged<CFError>?
+                    let keyDictionary = verificationMethod["publicKeyJwk"]
+                    let keyData = NSMutableData.init(bytes: [0x04], length: [0x04].count)
+                    var xString = keyDictionary["x"].stringValue
+                    var yString = keyDictionary["y"].stringValue
+                    
+                    xString = xString.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+                    if xString.count % 4 == 2 {
+                        xString.append("==")
+                    }
+                    if xString.count % 4 == 3 {
+                        xString.append("=")
+                    }
+                    
+                    yString = yString.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+                    if yString.count % 4 == 2 {
+                        yString.append("==")
+                    }
+                    if yString.count % 4 == 3 {
+                        yString.append("=")
+                    }
+                    
+                    let xBytes = Data(base64Encoded: xString)
+                    /*Same with y and d*/
+                    let yBytes = Data(base64Encoded: yString)
+                    
+                    keyData.append(xBytes!)
+                    keyData.append(yBytes!)
+                    let attributes: [String: Any] = [
+                        kSecAttrKeyType as String: kSecAttrKeyTypeEC,
+                        kSecAttrKeyClass as String: kSecAttrKeyClassPublic,
+                        kSecAttrKeySizeInBits as String: 256,
+                        kSecAttrIsPermanent as String: false
+                    ]
+                    key = try SecKeyCreateWithData(keyData as CFData, attributes as CFDictionary, &error)
+                    print(error)
+                } catch let error {
+                    print(error)
+                }
+            }
+        }
+        guard let key else { return nil }
+        return key
+    }
+}
+
 
