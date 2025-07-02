@@ -22,7 +22,7 @@ let package = Package(
     ),
     .package(
       url: "https://github.com/AffinitiQuest/eudi-lib-ios-presentation-exchange-swift.git",
-      branch: "aq-dev"
+      exact: "0.3.0-aq"
     ),
     .package(
       url: "https://github.com/apple/swift-certificates.git",
