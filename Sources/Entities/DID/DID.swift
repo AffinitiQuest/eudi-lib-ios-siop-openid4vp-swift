@@ -91,8 +91,9 @@ public class AQDidResolver: DIDPublicKeyLookupAgentType {
     public init() {}
     
     public func resolveDidDocument(didUrl: String) async -> JSON? {
-        let temp = didUrl.split(separator: OpenId4VPSpec.clientIdSchemeSeparator, maxSplits: 2)
-        var urlString = "https://\(temp.dropFirst(2).joined(separator: "/"))"
+        let didString = didUrl.split(separator: OpenId4VPSpec.clientIdSchemeSeparator)
+        let removeDidMethod = didString.dropFirst(2)
+        var urlString = "https://\(removeDidMethod.joined(separator: "/"))"
         guard let url = URL(string: urlString) else { return nil }
         if didUrl.last! == ":" {
             urlString.append("did.json")
