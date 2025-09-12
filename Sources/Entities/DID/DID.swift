@@ -118,7 +118,10 @@ public class AQDidResolver: DIDPublicKeyLookupAgentType {
     
     public func resolveKey(from didUrl: DID) async -> SecKey? {
         let didUri = didUrl.string
-        let parts = didUri.components(separatedBy: "%23")
+        var parts = didUri.components(separatedBy: "%23")
+        if parts.count != 2 {
+            parts = didUri.components(separatedBy: "#")
+        }
         guard parts.count == 2 else { return nil }
         let (didUrl, kid) = (parts[0], parts[1])
         guard let didJson = await resolveDidDocument(didUrl: didUrl) else { return nil }
