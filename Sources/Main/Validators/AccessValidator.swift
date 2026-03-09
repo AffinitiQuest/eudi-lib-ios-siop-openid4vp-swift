@@ -86,6 +86,7 @@ public actor AccessValidator: AccessValidating {
           return alternativeNames ?? []
         }
       )
+    case .decentralizedIdentifier: break // We fetch the key and check the signature on the JWT earlier. I think this can be used to determine whether we trust the DID itself.
     case .redirectUri: break
     default: throw ValidationError.unsupportedClientIdScheme(nil)
     }

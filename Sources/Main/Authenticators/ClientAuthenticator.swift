@@ -127,7 +127,9 @@ internal actor ClientAuthenticator {
     case .decentralizedIdentifier(let keyLookup):
       return try await didPublicKeyLookup(
         jws: try JWS(compactSerialization: jwt),
-        clientId: clientId,
+        clientId: clientId.hasPrefix("decentralized_identifier:")
+                        ? String(clientId.dropFirst("decentralized_identifier:".count))
+                        : clientId,
         keyLookup: keyLookup
       )
       
@@ -157,20 +159,28 @@ internal actor ClientAuthenticator {
       throw ValidationError.validationError("No supported client Id scheme")
     }
     
-    switch scheme {
-    case .preregistered(let clients):
-      guard let client = clients[clientId] else {
-        throw ValidationError.validationError("preregistered client not found")
-      }
-      return .preRegistered(
-        clientId: clientId,
-        legalName: client.legalName
-      )
-    case .redirectUri:
-      return .redirectUri(
-        clientId: clientId
-      )
-      
+      switch scheme {
+      case .preregistered(let clients):
+          guard let client = clients[clientId] else {
+              throw ValidationError.validationError("preregistered client not found")
+          }
+          return .preRegistered(
+            clientId: clientId,
+            legalName: client.legalName
+          )
+      case .redirectUri:
+          return .redirectUri(
+            clientId: clientId
+          )
+      case .decentralizedIdentifier:
+          let prefix = "decentralized_identifier:"
+          let parsedString = clientId.hasPrefix(prefix) ? String(clientId.dropFirst(prefix.count)) : clientId
+          
+          guard let url = URL(string: parsedString) else {
+              throw ValidationError.validationError("DID is invalid.")
+              
+          }
+          return .didClient(did: DID(uri: url))
     default:
       throw ValidationError.validationError("Scheme \(scheme) not supported")
     }

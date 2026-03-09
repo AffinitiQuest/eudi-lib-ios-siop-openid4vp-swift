@@ -21,7 +21,21 @@ internal struct AuthenticatedRequest: Sendable {
   let requestObject: UnvalidatedRequestObject
 }
 
-internal struct JWTDecoder {
+public struct JWTDecoder {
+    public static func decodeW3cJwt(_ jwt: String) -> JSON? {
+        // JWS compact: header.payload.signature (we only need payload)
+        let parts = jwt.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count >= 2 else { return nil }
+        
+        guard let payloadData = String(parts[1]).base64AnyDecodedData else { return nil }
+        
+        do {
+          let json = try JSON(data: payloadData)
+          return json
+        } catch {
+          return nil
+        }
+    }
   
   static func decodeJWT(_ jwt: String) -> UnvalidatedRequestObject? {
     // JWS compact: header.payload.signature (we only need payload)
